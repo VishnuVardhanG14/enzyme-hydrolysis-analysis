@@ -1,0 +1,273 @@
+---
+title: "Enzyme_hydrolysis"
+format: html
+editor: visual
+---
+
+## Enzyme Hydrolysis Data Analysis
+
+A self mini project to familiarize with R program by analysing data obtained from a synthetically generated enzyme hydrolysis experiment.
+
+Dataset is generated synthetically using the following code and with the help of chatgpt
+
+**Aim:** To investigate the influence of temperature and hydrolysis time on protein and reducing sugar concentration using data analysis and visualization in R
+
+**Objectives:**
+
+- Evaluate the effect of temperature and hydrolysis time on biocompound yield
+
+- Identify statistical relationship and significant difference between process parameters
+
+- Visualize relationship between experimental conditions and biocompound yield
+
+**Research questions:**
+
+- Does temperature have an impact on the protein and sugar production?
+
+- Similarly, does hydrolysis time effect the biocompound yield?
+
+- What is the relationship between these parameters and the concentration of protein and sugar?
+
+- Based on the analysis, what is the most favorable condition to get the maximum biocompound concentration?
+
+### Experimental design
+
+| Parameter         | Conditions    |
+|-------------------|---------------|
+| Substrate loading | 2%            |
+| Enzyme loading    | 2%            |
+| Temeperature      | 50°C, 60°C    |
+| Hydrolysis time   | 1, 3, 6 hours |
+| Replicates        | 3             |
+
+: Parameters and conditions for enzyme hydrolysis
+
+#### Enzyme hydrolysis dataset
+
+**Assumptions:**
+
+- The independent variables are hydrolysis temperature and incubation time
+
+- The dependent variables are protein and reducing sugar concentrations
+
+<!-- -->
+
+- The biocompound concentration increases with increase in temperature and incubation time
+
+- Temperature have a lower significance than incubation time
+
+```{r}
+#==================================
+# Generating synthetic data
+#==================================
+
+#Set random for reproducibility
+set.seed(123)
+
+#Defining experimental conditions
+hydrolysis_data <- expand.grid(
+  Substrate_Loading = 2,
+  Enzyme_Loading = 2,
+  Temperature = c(50, 60),
+  Hydrolysis_time = c(1, 3, 6),
+  Replicates = 1:3
+)
+
+#Generating protein concentration
+hydrolysis_data$Protein_concentration <-
+  5 +
+  0.4 * (hydrolysis_data$Temperature == 60) +
+  0.5 * (hydrolysis_data$Hydrolysis_time) +
+  rnorm(18, mean = 0, sd = 0.3)
+
+#Generating reduciing sugar concentration
+hydrolysis_data$Sugar_concentration <- 
+  2 +
+  0.6 * (hydrolysis_data$Temperature == 60) + 
+  0.5 * (hydrolysis_data$Hydrolysis_time) +
+  rnorm(18, mean = 0, sd = 0.4)
+```
+
+### Organizing Dataset
+
+The generated dataset looks unorganized as the experimental conditions are not grouped together. The objective here is to sort the data by **temperature,** then **hydrolysis time**, followed by **replicates.**
+
+```{r}
+#==================================
+# Organizing dataset
+#==================================
+hydrolysis_data <- hydrolysis_data[
+  order(
+    hydrolysis_data$Temperature,
+    hydrolysis_data$Hydrolysis_time,
+    hydrolysis_data$Replicates
+  ),
+]
+```
+
+### Exploratory Data Analysis
+
+EDA is used here to understand the data by answering questions provided above.
+
+```{r}
+library(tidyverse)
+```
+
+Firstly, let's obtain the mean value of the replicates to simplify analysis
+
+```{r}
+hydrolysis_summary <- hydrolysis_data |> 
+  group_by(Temperature, Hydrolysis_time) |> 
+  summarize(
+    avg_protein = mean(Protein_concentration),
+    sd_protein = sd(Protein_concentration),
+    avg_sugar = mean(Sugar_concentration),
+    sd_sugar = sd(Sugar_concentration),
+    .groups = "drop"
+  )
+```
+
+Now we have a simplified data, we can start by plotting graphs to visualize the relationship between process parameters and biocompound yield
+
+```{r}
+#==================================
+# Visualizing data - Protein concentration
+#==================================
+ggplot(hydrolysis_summary, 
+       aes(x = Hydrolysis_time, 
+           y = avg_protein, 
+           color = factor(Temperature))) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = avg_protein - sd_protein,
+        ymax = avg_protein + sd_protein),
+    width = 0.2
+  ) +
+  labs(
+    title = "Effect of temperature and time on protein concentration",
+    x = "Hydrolysis time (H)",
+    y = "Mean Protein concentration (mg/mL)",
+    color = "Temperature (°C)"
+  ) +
+  theme_minimal()
+```
+
+From the plot, we can infer that the protein concentration increases with hydrolysis time. Similarly, the protein is slightly released more at 60°C than at 50°C. This plot suggests both temperature and time influence the protein extraction process.
+
+```{r}
+#==================================
+# Visualizing data - Reducing sugar concentration
+#==================================
+ggplot(hydrolysis_summary, 
+       aes(x = Hydrolysis_time, 
+           y = avg_sugar, 
+           color = factor(Temperature))) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = avg_sugar - sd_sugar,
+        ymax = avg_sugar + sd_sugar),
+    width = 0.2
+  ) +
+  labs(
+    title = "Effect of temperature and time on Reducing sugar concentration",
+    x = "Hydrolysis time (H)",
+    y = "Mean Sugar concentration (mg/mL)",
+    color = "Temperature (°C)"
+    ) +
+  theme_minimal()
+```
+
+Similar to protein concentration, the reducing sugar shows an increasing trend with hydrolysis time. However, the influence of temperature on the sugar release looks more prominent than that seen in proteins, suggesting a stronger association between temperature and reducing sugar release.
+
+### Statistical Analysis
+
+To understand the relationship between protein and sugar concentrations, we can use statistical methods.
+
+```{r}
+#==================================
+# Correlation analysis
+#==================================
+cor(
+  hydrolysis_data$Protein_concentration,
+  hydrolysis_data$Sugar_concentration,
+  method = "pearson"
+)
+```
+
+Pearson method is used to obtain the correlation coefficient between the protein and sugar concentration. The obtained coefficient value of **0.90** indicates a strong positive relationship. This suggests that when protein concentration increases, the reducing sugar also tend to increase.
+
+```{r}
+#==================================
+# Visualizing data - Relationship between Protein and Sugar
+#==================================
+ggplot(
+  hydrolysis_data,
+  aes(x = Protein_concentration,
+      y = Sugar_concentration)
+) +
+  geom_point(size = 3) +
+  geom_smooth(
+    method = "lm",
+    se = TRUE,
+    color = "blue"
+  ) +
+  labs(
+    title = "Relationship between protein and sugar concentration",
+    x = "Protein concentration (mg/mL)",
+    y = "Reducing sugar concentration (mg/mL)"
+  ) +
+  theme_minimal()
+```
+
+The relationship between protein and reducing sugar concentration can be easily visualized from this plot, which shows that there is a linear trend between both thee biocompounds. This indicates that where the protein increases, there is an increases in reducing sugar concentration. However, this doesn't show that the protein concentration influences that of the reducing sugar.
+
+### ANOVA Analysis
+
+ANOVA analysis is used to test the effect of the independent variables (Temperature and Hydrolysis time) on the dependent variables (Protein and sugar concentration). Let's consider **0.05** as the significance value.
+
+```{r}
+#==================================
+# Visualizing data - Protein ANOVA analysis
+#==================================
+
+protein_anova <- aov(
+  Protein_concentration ~
+    factor(Temperature)*factor(Hydrolysis_time),
+  data = hydrolysis_data
+)
+
+summary(protein_anova)
+
+```
+
+The p-value indicates the significance of the impact of the independent variables on dependent variables. From the data, it can be inferred that temperature has a p-value of 0.0654, which is greater than the significance value. This shows that temperature may not have much effect on the protein concentration. However, the hydrolysis time have a p-value of 4.82 \* 10\^-8 which is very low than the significance value indicating that the time have a significant influence on the protein concentration. The interaction between temperature and hydrolysis time also may not effect the concentration much as its p-value is 0.713.
+
+```{r}
+#==================================
+# Visualizing data - Reducing sugar ANOVA analysis
+#==================================
+
+sugar_anova <- aov(
+  Sugar_concentration ~
+    factor(Temperature)*factor(Hydrolysis_time),
+  data = hydrolysis_data
+)
+
+summary(sugar_anova)
+```
+
+Similar to the protein concentration, the impact of the independent variables on the reducing sugar concentration can be evaluated using the p-value. With a p-value of 0.004 and 1.21\*10\^-7 respectively, the temperature and hydrolysis time may have a significant impact on the reducing sugar concentration. However, the interaction between them do not show much influence (p-value = 0.248)
+
+### Key Findings:
+
+- The protein and reducing sugar concentration increased linearly with increase in incubation time and temperature
+
+- Temperature had very less influence on protein concentration while it played a significant role for reducing sugar
+
+- Wherever protein increased, the reducing sugar also tend to increase. However, this does not show that both affect each other
+
+### Conclusion:
+
+Based on the analysis of the enzyme hydrolysis dataset, it can be concluded that the temperature and incubation time have a positive influence on the concentration of the biocompounds. It can also be inferred that the favorable conditions among the dataset is 60°C for 6 hours which yielded a concentration of 8.4 and 5.7 mg/mL for protein and sugar respectively. Therefore, the influence of the independent variables on the dependent variables was analyzed and visualized using R program.
